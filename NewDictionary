@@ -1,0 +1,306 @@
+#include <iostream>
+#include <fstream>
+#include <map>
+#include <string>
+#include <sstream>
+#include <algorithm> // For transform and tolower
+#include <vector>
+using namespace std;
+
+// Node structure for AVL Tree
+struct Node {
+    string word;
+    string details;
+    Node* left;
+    Node* right;
+    int height;
+
+    Node(string w, string d) : word(w), details(d), left(nullptr), right(nullptr), height(1) {}
+};
+
+// AVL Tree class
+class AVLTree {
+private:
+    Node* root;
+
+    int height(Node* node) {
+        return node ? node->height : 0;
+    }
+
+    int balanceFactor(Node* node) {
+        return node ? height(node->left) - height(node->right) : 0;
+    }
+
+    Node* rotateRight(Node* y) {
+        Node* x = y->left;
+        Node* T2 = x->right;
+        x->right = y;
+        y->left = T2;
+        y->height = max(height(y->left), height(y->right)) + 1;
+        x->height = max(height(x->left), height(x->right)) + 1;
+        return x;
+    }
+
+    Node* rotateLeft(Node* x) {
+        Node* y = x->right;
+        Node* T2 = y->left;
+        y->left = x;
+        x->right = T2;
+        x->height = max(height(x->left), height(x->right)) + 1;
+        y->height = max(height(y->left), height(y->right)) + 1;
+        return y;
+    }
+
+    Node* balance(Node* node) {
+        int bf = balanceFactor(node);
+        if (bf > 1 && balanceFactor(node->left) >= 0)
+            return rotateRight(node);
+        if (bf < -1 && balanceFactor(node->right) <= 0)
+            return rotateLeft(node);
+        if (bf > 1 && balanceFactor(node->left) < 0) {
+            node->left = rotateLeft(node->left);
+            return rotateRight(node);
+        }
+        if (bf < -1 && balanceFactor(node->right) > 0) {
+            node->right = rotateRight(node->right);
+            return rotateLeft(node);
+        }
+        return node;
+    }
+
+    Node* insert(Node* node, string word, string details) {
+        if (!node) return new Node(word, details);
+        if (word < node->word)
+            node->left = insert(node->left, word, details);
+        else if (word > node->word)
+            node->right = insert(node->right, word, details);
+        else
+            return node;
+
+        node->height = max(height(node->left), height(node->right)) + 1;
+        return balance(node);
+    }
+
+    Node* search(Node* node, string word) {
+        if (!node || node->word == word) return node;
+        if (word < node->word)
+            return search(node->left, word);
+        return search(node->right, word);
+    }
+
+    void inorder(Node* node) {
+        if (!node) return;
+        inorder(node->left);
+        cout << "Word: " << node->word << endl;
+        cout << "Details: " << node->details << endl;
+        cout << "-----------------------------" << endl;
+        inorder(node->right);
+    }
+
+    void inorder(Node* node, ofstream& file) {
+        if (!node) return;
+        inorder(node->left, file);
+        file << node->word << "," << node->details << endl;
+        inorder(node->right, file);
+    }
+
+public:
+    AVLTree() : root(nullptr) {}
+
+    void insert(string word, string details) {
+        root = insert(root, word, details);
+    }
+
+    string search(string word) {
+        Node* node = search(root, word);
+        return node ? node->details : "Word not found!";
+    }
+
+    void displayTree() {
+        if (!root) {
+            cout << "The tree is empty." << endl;
+        }
+        else {
+            inorder(root);
+        }
+    }
+
+    void saveToFile(const string& filename) {
+        ofstream file(filename);
+        if (file.is_open()) {
+            inorder(root, file);
+            file.close();
+        }
+    }
+};
+
+// User Management Class
+class UserManager {
+private:
+    map<string, string> credentials;
+
+    void loadCredentials() {
+        ifstream file("credentials.txt");
+        if (file.is_open()) {
+            string username, password;
+            while (file >> username >> password) {
+                credentials[username] = password;
+            }
+            file.close();
+        }
+    }
+
+    void saveCredentials() {
+        ofstream file("credentials.txt");
+        if (file.is_open()) {
+            for (auto& cred : credentials) {
+                file << cred.first << " " << cred.second << endl;
+            }
+            file.close();
+        }
+    }
+
+public:
+    UserManager() {
+        loadCredentials();
+    }
+
+    void registerUser() {
+        string username, password;
+        cout << "Enter new username: ";
+        cin >> username;
+        cout << "Enter new password: ";
+        cin >> password;
+        credentials[username] = password;
+        saveCredentials();
+        cout << "Registration successful!" << endl;
+    }
+
+    bool loginUser() {
+        string username, password;
+        cout << "Enter username: ";
+        cin >> username;
+        cout << "Enter password: ";
+        cin >> password;
+        if (credentials.find(username) != credentials.end() && credentials[username] == password) {
+            cout << "Login successful!" << endl;
+            return true;
+        }
+        cout << "Invalid credentials!" << endl;
+        return false;
+    }
+};
+
+// Word Management Class
+class WordManager {
+private:
+    string filename = "file.txt";
+    AVLTree avl;
+
+    void loadWordsToAVL() {
+        ifstream file(filename);
+        string line;
+        if (file.is_open()) {
+            while (getline(file, line)) {
+                stringstream ss(line);
+                string word, details;
+                getline(ss, word, ',');
+                getline(ss, details);
+                avl.insert(word, details);
+            }
+            file.close();
+        }
+    }
+
+    void saveAVLToFile() {
+        avl.saveToFile(filename);
+    }
+
+public:
+    WordManager() {
+        loadWordsToAVL();
+    }
+
+    void addWord() {
+        string word, meaning, synonyms, phonetic, origin, partOfSpeech;
+        cout << "Enter word: ";
+        cin.ignore();
+        getline(cin, word);
+        cout << "Enter meaning: ";
+        getline(cin, meaning);
+        cout << "Enter synonyms: ";
+        getline(cin, synonyms);
+        cout << "Enter phonetic: ";
+        getline(cin, phonetic);
+        cout << "Enter origin: ";
+        getline(cin, origin);
+        cout << "Enter part of speech: ";
+        getline(cin, partOfSpeech);
+
+        string details = meaning + "," + synonyms + "," + phonetic + "," + origin + "," + partOfSpeech;
+        avl.insert(word, details);
+        saveAVLToFile();
+        cout << "Word added successfully and records rearranged!" << endl;
+    }
+
+    void searchWord() {
+        string word;
+        cout << "Enter word to search: ";
+        cin.ignore();
+        getline(cin, word);
+        cout << "Details: " << avl.search(word) << endl;
+    }
+
+    void displayTree() {
+        avl.displayTree();
+    }
+};
+
+int main() {
+    UserManager userManager;
+    WordManager wordManager;
+
+    int choice;
+    do {
+        cout << "1. Register\n2. Login\n3. Add Word\n4. Search Word\n5. View Tree\n6. Exit\nEnter your choice: ";
+        cin >> choice;
+
+        switch (choice) {
+        case 1:
+            userManager.registerUser();
+            break;
+        case 2:
+            if (userManager.loginUser()) {
+                int adminChoice;
+                do {
+                    cout << "1. Add Word\n2. Search Word\n3. View Tree\n4. Logout\nEnter your choice: ";
+                    cin >> adminChoice;
+
+                    switch (adminChoice) {
+                    case 1:
+                        wordManager.addWord();
+                        break;
+                    case 2:
+                        wordManager.searchWord();
+                        break;
+                    case 3:
+                        wordManager.displayTree();
+                        break;
+                    }
+                } while (adminChoice != 4);
+            }
+            break;
+        case 3:
+            wordManager.addWord();
+            break;
+        case 4:
+            wordManager.searchWord();
+            break;
+        case 5:
+            wordManager.displayTree();
+            break;
+        }
+    } while (choice != 6);
+
+    return 0;
+}
